@@ -1,0 +1,74 @@
+#+TITLE: org-ql-export
+
+Export your org-ql queries back into the org-mode files!
+
+* Usage example
+
+This is one-direction exporting.
+
+I am exporting several QL views into org-mode files directly and put them into some WebDAV file server to have an access to these files from the phone. See "Information" view.
+
+Other QL views are saved to org-mode first, then to ICS format and then uploaded to the CalDAV server. This allows me to get the overview of my events and timetables directly from the usual calendar applications. For phone I can use the CalDAV server URL and for the desktop I can use the exported ICS file.
+
+Example export settings:
+#+begin_src elisp
+(setq org-ql-export-settings
+      `((:title "Events"
+         :file "~/org/.tmp/events.org"
+         :full-path t
+         :view (and (not (done))
+               (and (not (tags "travel"))
+                    (not (tags "current")))
+               (not (tags "ignore" "journal"))
+               (ts-active :from -7 :to 21)
+               (regexp org-scheduled-time-hour-regexp)))
+        (:title "Timetable"
+         :file "~/org/.tmp/timetable.org"
+         :view (and (not (done))
+                    (not (tags "ignore"))
+                    (and (not (tags "travel"))
+                         (not (tags "current")))
+                    (tags "journal")
+                    (ts-active :from -1 :to 14)
+                    (regexp org-scheduled-time-hour-regexp)))
+        (:title "Travel"
+         :file "~/org/.tmp/travel.org"
+         :tree t
+         :full-path t
+         :view (and (level 1)
+               (tags "travel")
+               (tags "current")))
+        (:title "Information"
+         :file "~/org/.tmp/info.org"
+         :tree t
+         :full-path t
+         :view (tags-local "info"))))
+#+end_src
+
+ICS exporter and function to call to do everything (~org-user/export-function~):
+#+begin_src elisp
+(defun org-user/export-org-file-to-ics (file-path)
+  "Export FILE-PATH org-mode file into the ICS file."
+  (with-current-buffer (find-file-noselect file-path)
+    (let ((org-id-outline-method nil)
+          (org-icalendar-alarm-time 0)
+          (org-icalendar-categories (quote (local-tags category)))
+          (org-icalendar-include-body nil)
+          (org-export-with-broken-links t)
+          (org-icalendar-scheduled-summary-prepend nil)
+          (org-icalendar-deadline-summary-prepend nil)
+          (org-icalendar-force-alarm t)
+          (org-icalendar-use-deadline (quote (event-if-not-todo event-if-todo todo-start)))
+          (org-icalendar-use-scheduled (quote (event-if-not-todo event-if-todo todo-start)))
+          (org-icalendar-with-timestamps nil)
+          (org-agenda-default-appointment-duration 0))
+      (org-icalendar-export-to-ics))))
+
+(defun org-user/export-function ()
+  (org-ql-export)
+  (org-user/export-org-file-to-ics "~/org/.tmp/events.org")
+  (org-user/export-org-file-to-ics "~/org/.tmp/timetable.org")
+  (org-user/export-org-file-to-ics "~/org/.tmp/travel.org"))
+#+end_src
+
+To put staff to ICS you can use either the [[https://github.com/dengste/org-caldav][org-caldav]] (from emacs directly) or [[http://www.webdav.org/cadaver/][cadaver]] (from command line).
